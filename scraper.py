@@ -4,80 +4,116 @@ import json
 from playwright.sync_api import sync_playwright
 
 
-def scroll_results(page, scrolls=3, pause=2):
-    """Scroll the results panel to load more listings."""
+def scroll_and_collect_urls(page, max_results=20, scroll_count=3, pause=2):
+    """Scroll the results panel and collect all listing URLs."""
     panel = page.query_selector("div[role='feed'], div.m6QErb[aria-label]")
-    if panel:
-        for _ in range(scrolls):
-            panel.evaluate("el => el.scrollTop = el.scrollHeight")
-            time.sleep(pause)
+    if not panel:
+        return []
 
+    collected_urls = []
+    prev_count = 0
+    no_new_count = 0
 
-def extract_listing_data(page, listing):
-    """Click a listing and extract its detail data."""
-    data = {}
-    try:
-        listing.click()
-        page.wait_for_timeout(2500)
+    for i in range(scroll_count + 5):  # Extra scrolls to ensure we get enough
+        # Scroll to bottom of panel
+        panel.evaluate("el => el.scrollTop = el.scrollHeight")
+        time.sleep(pause)
 
-        # Name
-        name_el = page.query_selector("h1.DUwDvf")
-        data["name"] = name_el.inner_text().strip() if name_el else ""
+        # Collect all listing links
+        listings = page.query_selector_all("a.hfpxzc")
+        urls = []
+        seen = set()
+        for link in listings:
+            href = link.get_attribute("href") or ""
+            label = (link.get_attribute("aria-label") or "").lower()
+            if href and label and label not in seen:
+                seen.add(label)
+                urls.append({"url": href, "label": label})
 
-        # Rating
-        rating_el = page.query_selector("div.F7nice span[aria-hidden='true']")
-        data["rating"] = rating_el.inner_text().strip() if rating_el else ""
+        collected_urls = urls
 
-        # Reviews count
-        review_el = page.query_selector("div.F7nice span[aria-label*='review']")
-        if review_el:
-            text = review_el.get_attribute("aria-label") or ""
-            nums = re.findall(r"[\d,]+", text)
-            data["reviews"] = nums[0].replace(",", "") if nums else ""
+        # Check if we have enough
+        if len(collected_urls) >= max_results:
+            break
+
+        # Check if no new results loaded (end of list)
+        if len(collected_urls) == prev_count:
+            no_new_count += 1
+            if no_new_count >= 2:
+                break
         else:
-            data["reviews"] = ""
+            no_new_count = 0
+        prev_count = len(collected_urls)
 
-        # Category
-        cat_el = page.query_selector("button.DkEaL")
-        data["category"] = cat_el.inner_text().strip() if cat_el else ""
+        # Check for "end of results" indicator
+        end_el = page.query_selector("span.HlvSq, p.fontBodyMedium > span > span")
+        if end_el:
+            text = end_el.inner_text().lower()
+            if "end of results" in text or "you've reached" in text:
+                break
 
-        # Address
-        addr_el = page.query_selector(
-            "button[data-item-id='address'] div.Io6YTe, "
-            "div[data-item-id*='address'] div.Io6YTe"
-        )
-        data["address"] = addr_el.inner_text().strip() if addr_el else ""
+    return collected_urls[:max_results]
 
-        # Phone
-        phone_el = page.query_selector(
-            "button[data-item-id*='phone'] div.Io6YTe, "
-            "button[data-tooltip='Copy phone number'] div.Io6YTe"
-        )
-        data["phone"] = phone_el.inner_text().strip() if phone_el else ""
 
-        # Website
-        website_el = page.query_selector(
-            "a[data-item-id='authority'] div.Io6YTe, "
-            "a[data-item-id*='authority'] div.Io6YTe"
-        )
-        data["website"] = website_el.inner_text().strip() if website_el else ""
+def extract_detail_data(page):
+    """Extract business data from a detail page."""
+    data = {}
 
-        # Full website URL
-        website_link = page.query_selector("a[data-item-id='authority'], a[data-item-id*='authority']")
-        data["website_url"] = website_link.get_attribute("href") if website_link else ""
+    # Name
+    name_el = page.query_selector("h1.DUwDvf")
+    data["name"] = name_el.inner_text().strip() if name_el else ""
 
-        # Hours
-        hours_el = page.query_selector(
-            "div[aria-label*='hour'] span.ZDu9vd span:nth-child(2), "
-            "button[data-item-id='oh'] div.Io6YTe"
-        )
-        data["hours"] = hours_el.inner_text().strip() if hours_el else ""
+    # Rating
+    rating_el = page.query_selector("div.F7nice span[aria-hidden='true']")
+    data["rating"] = rating_el.inner_text().strip() if rating_el else ""
 
-        # Google Maps URL
-        data["maps_url"] = page.url
+    # Reviews count
+    review_el = page.query_selector("div.F7nice span[aria-label*='review']")
+    if review_el:
+        text = review_el.get_attribute("aria-label") or ""
+        nums = re.findall(r"[\d,]+", text)
+        data["reviews"] = nums[0].replace(",", "") if nums else ""
+    else:
+        data["reviews"] = ""
 
-    except Exception as e:
-        data["error"] = str(e)
+    # Category
+    cat_el = page.query_selector("button.DkEaL")
+    data["category"] = cat_el.inner_text().strip() if cat_el else ""
+
+    # Address
+    addr_el = page.query_selector(
+        "button[data-item-id='address'] div.Io6YTe, "
+        "div[data-item-id*='address'] div.Io6YTe"
+    )
+    data["address"] = addr_el.inner_text().strip() if addr_el else ""
+
+    # Phone
+    phone_el = page.query_selector(
+        "button[data-item-id*='phone'] div.Io6YTe, "
+        "button[data-tooltip='Copy phone number'] div.Io6YTe"
+    )
+    data["phone"] = phone_el.inner_text().strip() if phone_el else ""
+
+    # Website
+    website_el = page.query_selector(
+        "a[data-item-id='authority'] div.Io6YTe, "
+        "a[data-item-id*='authority'] div.Io6YTe"
+    )
+    data["website"] = website_el.inner_text().strip() if website_el else ""
+
+    # Full website URL
+    website_link = page.query_selector("a[data-item-id='authority'], a[data-item-id*='authority']")
+    data["website_url"] = website_link.get_attribute("href") if website_link else ""
+
+    # Hours
+    hours_el = page.query_selector(
+        "div[aria-label*='hour'] span.ZDu9vd span:nth-child(2), "
+        "button[data-item-id='oh'] div.Io6YTe"
+    )
+    data["hours"] = hours_el.inner_text().strip() if hours_el else ""
+
+    # Google Maps URL
+    data["maps_url"] = page.url
 
     return data
 
@@ -88,7 +124,6 @@ def scrape_google_maps(keyword, max_results=20, scroll_count=3):
     Returns a list of dicts with business data.
     """
     results = []
-    seen_names = set()
 
     with sync_playwright() as p:
         browser = p.chromium.launch(headless=True)
@@ -116,50 +151,24 @@ def scrape_google_maps(keyword, max_results=20, scroll_count=3):
                 browser.close()
                 return results
 
-            # Scroll to load more results
-            scroll_results(page, scrolls=scroll_count)
+            # Scroll and collect all listing URLs first
+            listing_urls = scroll_and_collect_urls(page, max_results, scroll_count)
 
-            # Get all listing links
-            listings = page.query_selector_all("a.hfpxzc")
-            count = min(len(listings), max_results)
-
-            for i in range(count):
+            # Now visit each URL directly (no more back button issues)
+            for item in listing_urls:
                 try:
-                    # Re-find listings each iteration (DOM may change after click)
-                    listings = page.query_selector_all("a.hfpxzc")
-                    if i >= len(listings):
-                        break
+                    page.goto(item["url"], timeout=20000)
+                    page.wait_for_timeout(2500)
 
-                    listing = listings[i]
-                    aria_label = listing.get_attribute("aria-label") or ""
-
-                    # Skip duplicates by name
-                    if aria_label.lower() in seen_names:
-                        continue
-                    seen_names.add(aria_label.lower())
-
-                    # Scroll element into view
-                    listing.scroll_into_view_if_needed()
-                    page.wait_for_timeout(500)
-
-                    data = extract_listing_data(page, listing)
+                    data = extract_detail_data(page)
 
                     if not data.get("name"):
-                        data["name"] = aria_label
+                        data["name"] = item["label"].title()
 
                     if data.get("name"):
                         results.append(data)
 
-                    # Go back to results
-                    page.go_back()
-                    page.wait_for_timeout(2000)
-
                 except Exception:
-                    try:
-                        page.go_back()
-                        page.wait_for_timeout(2000)
-                    except Exception:
-                        pass
                     continue
 
         finally:
@@ -172,5 +181,6 @@ if __name__ == "__main__":
     import sys
     keyword = " ".join(sys.argv[1:]) if len(sys.argv) > 1 else "restaurants in New York"
     print(f"Searching: {keyword}")
-    data = scrape_google_maps(keyword, max_results=5)
+    data = scrape_google_maps(keyword, max_results=10)
+    print(f"Found: {len(data)} results")
     print(json.dumps(data, indent=2))
