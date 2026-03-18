@@ -910,7 +910,11 @@
 <!-- Loading Overlay -->
 <div class="loading-overlay" id="loading">
     <div class="spinner"></div>
-    <div class="loading-text" id="loadingText">Scraping Google Maps... This may take a minute.</div>
+    <div class="loading-text" id="loadingText">Scraping Google Maps...</div>
+    <div class="progress-bar-container" id="scrapeProgressContainer" style="width:300px;max-width:80vw;display:none;">
+        <div class="progress-bar" id="scrapeProgressBar" style="width:0%;">0%</div>
+    </div>
+    <div id="scrapeStatus" style="color:#38bdf8;font-size:13px;margin-top:4px;text-align:center;"></div>
 </div>
 
 <!-- WhatsApp Modal -->
@@ -1045,6 +1049,74 @@ Best regards</textarea>
         btn.disabled = true;
         showLoading(true);
 
+        const loadingText = document.getElementById("loadingText");
+        const progressContainer = document.getElementById("scrapeProgressContainer");
+        const progressBar = document.getElementById("scrapeProgressBar");
+        const scrapeStatus = document.getElementById("scrapeStatus");
+
+        loadingText.textContent = "Starting scraper...";
+        progressContainer.style.display = "none";
+        scrapeStatus.textContent = "";
+
+        const params = new URLSearchParams({ keyword, location, source, max_results: maxResults, scroll_count: scrollCount });
+
+        try {
+            const eventSource = new EventSource(`/api/search-stream?${params}`);
+
+            eventSource.onmessage = function(e) {
+                const msg = JSON.parse(e.data);
+                const { event, data } = msg;
+
+                if (event === "status") {
+                    loadingText.textContent = data.message;
+                }
+                else if (event === "scrolling") {
+                    loadingText.textContent = `Found ${data.found} listings. Now scraping details...`;
+                    progressContainer.style.display = "block";
+                    progressBar.style.width = "0%";
+                    progressBar.textContent = "0%";
+                }
+                else if (event === "scraping") {
+                    const pct = Math.round((data.current / data.total) * 100);
+                    progressBar.style.width = pct + "%";
+                    progressBar.textContent = `${data.current}/${data.total}`;
+                    loadingText.textContent = `Scraping ${data.current} of ${data.total}...`;
+                    scrapeStatus.textContent = data.name;
+                }
+                else if (event === "complete") {
+                    eventSource.close();
+                    progressBar.style.width = "100%";
+                    progressBar.textContent = "Done!";
+                    showToast(`Found ${data.total_scraped} businesses. ${data.new_added} new, ${data.duplicates_skipped} duplicates skipped.`);
+                    loadLeads();
+                    btn.disabled = false;
+                    showLoading(false);
+                    progressContainer.style.display = "none";
+                    scrapeStatus.textContent = "";
+                }
+                else if (event === "error") {
+                    eventSource.close();
+                    showToast("Error: " + data.message, true);
+                    btn.disabled = false;
+                    showLoading(false);
+                    progressContainer.style.display = "none";
+                }
+            };
+
+            eventSource.onerror = function() {
+                eventSource.close();
+                showToast("Connection lost. Retrying with fallback...", true);
+                // Fallback to regular POST
+                fallbackSearch(keyword, location, source, maxResults, scrollCount, btn);
+            };
+        } catch (err) {
+            fallbackSearch(keyword, location, source, maxResults, scrollCount, btn);
+        }
+    }
+
+    async function fallbackSearch(keyword, location, source, maxResults, scrollCount, btn) {
+        document.getElementById("loadingText").textContent = "Scraping (no live updates)...";
+        document.getElementById("scrapeProgressContainer").style.display = "none";
         try {
             const res = await fetch("/api/search", {
                 method: "POST",

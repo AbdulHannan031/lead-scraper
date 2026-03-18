@@ -118,12 +118,20 @@ def extract_detail_data(page):
     return data
 
 
-def scrape_google_maps(keyword, max_results=20, scroll_count=3):
+def scrape_google_maps(keyword, max_results=20, scroll_count=3, on_progress=None):
     """
     Search Google Maps for the keyword and scrape business listings.
+    on_progress(event, data) callback for real-time updates:
+      - ("scrolling", {"found": N})
+      - ("scraping", {"current": i, "total": N, "name": "..."})
+      - ("done", {"total": N})
     Returns a list of dicts with business data.
     """
     results = []
+
+    def emit(event, data):
+        if on_progress:
+            on_progress(event, data)
 
     with sync_playwright() as p:
         browser = p.chromium.launch(headless=True)
@@ -138,6 +146,7 @@ def scrape_google_maps(keyword, max_results=20, scroll_count=3):
         page = context.new_page()
 
         try:
+            emit("status", {"message": "Opening Google Maps..."})
             search_url = f"https://www.google.com/maps/search/{keyword.replace(' ', '+')}"
             page.goto(search_url, timeout=30000)
             page.wait_for_timeout(4000)
@@ -151,12 +160,19 @@ def scrape_google_maps(keyword, max_results=20, scroll_count=3):
                 browser.close()
                 return results
 
+            emit("status", {"message": "Scrolling to load listings..."})
+
             # Scroll and collect all listing URLs first
             listing_urls = scroll_and_collect_urls(page, max_results, scroll_count)
+            total = len(listing_urls)
 
-            # Now visit each URL directly (no more back button issues)
-            for item in listing_urls:
+            emit("scrolling", {"found": total})
+
+            # Now visit each URL directly
+            for i, item in enumerate(listing_urls):
                 try:
+                    emit("scraping", {"current": i + 1, "total": total, "name": item["label"].title()})
+
                     page.goto(item["url"], timeout=20000)
                     page.wait_for_timeout(2500)
 
@@ -170,6 +186,8 @@ def scrape_google_maps(keyword, max_results=20, scroll_count=3):
 
                 except Exception:
                     continue
+
+            emit("done", {"total": len(results)})
 
         finally:
             browser.close()

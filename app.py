@@ -9,7 +9,9 @@ from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 from pathlib import Path
 import requests as http_requests
-from flask import Flask, render_template, request, jsonify
+import queue
+import threading
+from flask import Flask, render_template, request, jsonify, Response
 
 # Load .env file for local development
 env_path = Path(__file__).parent / ".env"
@@ -119,7 +121,7 @@ def index():
 def search():
     data = request.get_json()
     keyword = data.get("keyword", "")
-    source = data.get("source", "google_maps")  # google_maps, manta, both
+    source = data.get("source", "google_maps")
     max_results = data.get("max_results", 20)
     scroll_count = data.get("scroll_count", 3)
     location = data.get("location", "")
@@ -155,6 +157,70 @@ def search():
         })
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/search-stream")
+def search_stream():
+    """SSE endpoint for real-time scraping progress."""
+    keyword = request.args.get("keyword", "")
+    source = request.args.get("source", "google_maps")
+    max_results = int(request.args.get("max_results", 20))
+    scroll_count = int(request.args.get("scroll_count", 3))
+    location = request.args.get("location", "")
+
+    if not keyword:
+        return jsonify({"error": "Keyword is required"}), 400
+
+    progress_queue = queue.Queue()
+
+    def on_progress(event, data):
+        progress_queue.put({"event": event, "data": data})
+
+    def run_scrape():
+        scraped = []
+        try:
+            if source in ("google_maps", "both"):
+                search_term = f"{keyword} in {location}" if location else keyword
+                gm_results = scrape_google_maps(
+                    search_term, max_results=max_results,
+                    scroll_count=scroll_count, on_progress=on_progress
+                )
+                for r in gm_results:
+                    r["source"] = "google_maps"
+                scraped.extend(gm_results)
+
+            if source in ("manta", "both"):
+                on_progress("status", {"message": "Scraping Manta.com..."})
+                manta_results = scrape_manta(keyword, location=location, max_pages=2)
+                scraped.extend(manta_results)
+
+            existing = load_leads()
+            updated, added = deduplicate_leads(existing, scraped)
+            save_leads(updated)
+
+            progress_queue.put({"event": "complete", "data": {
+                "total_scraped": len(scraped),
+                "new_added": len(added),
+                "duplicates_skipped": len(scraped) - len(added),
+            }})
+        except Exception as e:
+            progress_queue.put({"event": "error", "data": {"message": str(e)}})
+
+    thread = threading.Thread(target=run_scrape, daemon=True)
+    thread.start()
+
+    def generate():
+        while True:
+            try:
+                msg = progress_queue.get(timeout=120)
+                yield f"data: {json.dumps(msg)}\n\n"
+                if msg["event"] in ("complete", "error"):
+                    break
+            except queue.Empty:
+                yield f"data: {json.dumps({'event': 'heartbeat', 'data': {}})}\n\n"
+
+    return Response(generate(), mimetype="text/event-stream",
+                    headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"})
 
 
 @app.route("/api/leads", methods=["GET"])
