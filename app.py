@@ -212,7 +212,7 @@ def search_stream():
     def generate():
         while True:
             try:
-                msg = progress_queue.get(timeout=120)
+                msg = progress_queue.get(timeout=15)
                 yield f"data: {json.dumps(msg)}\n\n"
                 if msg["event"] in ("complete", "error"):
                     break
