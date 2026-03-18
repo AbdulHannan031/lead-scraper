@@ -8,7 +8,7 @@ from playwright.sync_api import sync_playwright
 PARALLEL_TABS = 4  # Number of tabs scraping simultaneously
 
 
-def scroll_and_collect_urls(page, max_results=20, scroll_count=3, pause=1.5):
+def scroll_and_collect_urls(page, max_results=20, scroll_count=3, pause=1, on_progress=None):
     """Scroll the results panel and collect all listing URLs."""
     panel = page.query_selector("div[role='feed'], div.m6QErb[aria-label]")
     if not panel:
@@ -18,7 +18,10 @@ def scroll_and_collect_urls(page, max_results=20, scroll_count=3, pause=1.5):
     prev_count = 0
     no_new_count = 0
 
-    for i in range(scroll_count + 5):
+    # ~7 results per scroll, calculate how many scrolls we need
+    max_scrolls = max((max_results // 7) + 3, scroll_count + 3)
+
+    for i in range(max_scrolls):
         panel.evaluate("el => el.scrollTop = el.scrollHeight")
         time.sleep(pause)
 
@@ -33,6 +36,9 @@ def scroll_and_collect_urls(page, max_results=20, scroll_count=3, pause=1.5):
                 urls.append({"url": href, "label": label})
 
         collected_urls = urls
+
+        if on_progress:
+            on_progress("status", {"message": f"Scrolling... found {len(collected_urls)} listings so far"})
 
         if len(collected_urls) >= max_results:
             break
@@ -182,7 +188,7 @@ def scrape_google_maps(keyword, max_results=20, scroll_count=3, on_progress=None
 
             emit("status", {"message": "Scrolling to load listings..."})
 
-            listing_urls = scroll_and_collect_urls(page, max_results, scroll_count)
+            listing_urls = scroll_and_collect_urls(page, max_results, scroll_count, on_progress=on_progress)
             total = len(listing_urls)
 
             emit("scrolling", {"found": total})
