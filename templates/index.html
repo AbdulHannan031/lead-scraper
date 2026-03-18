@@ -1,0 +1,1235 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Lead Scraper - Google Maps & Manta</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: #0f172a;
+            color: #e2e8f0;
+            min-height: 100vh;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%);
+            border-bottom: 1px solid #334155;
+            padding: 20px 40px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .header h1 {
+            font-size: 24px;
+            color: #38bdf8;
+            font-weight: 700;
+        }
+
+        .header .stats {
+            display: flex;
+            gap: 20px;
+        }
+
+        .stat-box {
+            background: #1e293b;
+            border: 1px solid #334155;
+            border-radius: 8px;
+            padding: 8px 16px;
+            text-align: center;
+        }
+
+        .stat-box .num {
+            font-size: 20px;
+            font-weight: 700;
+            color: #38bdf8;
+        }
+
+        .stat-box .label {
+            font-size: 11px;
+            color: #94a3b8;
+            text-transform: uppercase;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 24px;
+        }
+
+        /* Search Section */
+        .search-section {
+            background: #1e293b;
+            border: 1px solid #334155;
+            border-radius: 12px;
+            padding: 24px;
+            margin-bottom: 24px;
+        }
+
+        .search-row {
+            display: flex;
+            gap: 12px;
+            align-items: flex-end;
+        }
+
+        .input-group {
+            flex: 1;
+        }
+
+        .input-group label {
+            display: block;
+            font-size: 12px;
+            color: #94a3b8;
+            margin-bottom: 6px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .input-group input, .input-group select {
+            width: 100%;
+            padding: 10px 14px;
+            background: #0f172a;
+            border: 1px solid #334155;
+            border-radius: 8px;
+            color: #e2e8f0;
+            font-size: 14px;
+            outline: none;
+            transition: border-color 0.2s;
+        }
+
+        .input-group input:focus, .input-group select:focus {
+            border-color: #38bdf8;
+        }
+
+        .btn {
+            padding: 10px 24px;
+            border: none;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+            white-space: nowrap;
+        }
+
+        .btn-primary {
+            background: #38bdf8;
+            color: #0f172a;
+        }
+
+        .btn-primary:hover { background: #7dd3fc; }
+        .btn-primary:disabled { opacity: 0.5; cursor: not-allowed; }
+
+        .btn-danger {
+            background: #ef4444;
+            color: white;
+        }
+
+        .btn-danger:hover { background: #f87171; }
+
+        .btn-sm {
+            padding: 6px 12px;
+            font-size: 12px;
+        }
+
+        .btn-whatsapp {
+            background: #25d366;
+            color: white;
+        }
+
+        .btn-whatsapp:hover { background: #20bd5a; }
+
+        .btn-email {
+            background: #6366f1;
+            color: white;
+        }
+
+        .btn-email:hover { background: #818cf8; }
+
+        .btn-ai {
+            background: linear-gradient(135deg, #a855f7, #6366f1);
+            color: white;
+        }
+
+        .btn-ai:hover { background: linear-gradient(135deg, #c084fc, #818cf8); }
+        .btn-ai:disabled { opacity: 0.5; cursor: not-allowed; }
+
+        /* Filter & Actions Bar */
+        .toolbar {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 16px;
+            gap: 12px;
+            flex-wrap: wrap;
+        }
+
+        .filter-group {
+            display: flex;
+            gap: 8px;
+            align-items: center;
+        }
+
+        .filter-btn {
+            padding: 8px 16px;
+            background: #1e293b;
+            border: 1px solid #334155;
+            border-radius: 8px;
+            color: #94a3b8;
+            cursor: pointer;
+            font-size: 13px;
+            transition: all 0.2s;
+        }
+
+        .filter-btn.active {
+            background: #38bdf8;
+            color: #0f172a;
+            border-color: #38bdf8;
+        }
+
+        .filter-btn:hover:not(.active) {
+            border-color: #38bdf8;
+            color: #e2e8f0;
+        }
+
+        .search-filter input {
+            padding: 8px 14px;
+            background: #0f172a;
+            border: 1px solid #334155;
+            border-radius: 8px;
+            color: #e2e8f0;
+            font-size: 13px;
+            outline: none;
+            width: 250px;
+        }
+
+        .search-filter input:focus {
+            border-color: #38bdf8;
+        }
+
+        /* Table */
+        .table-wrapper {
+            background: #1e293b;
+            border: 1px solid #334155;
+            border-radius: 12px;
+            overflow: hidden;
+        }
+
+        .table-scroll {
+            overflow-x: auto;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            min-width: 1200px;
+        }
+
+        thead th {
+            background: #0f172a;
+            padding: 12px 16px;
+            text-align: left;
+            font-size: 12px;
+            text-transform: uppercase;
+            color: #94a3b8;
+            letter-spacing: 0.5px;
+            border-bottom: 1px solid #334155;
+            position: sticky;
+            top: 0;
+        }
+
+        tbody tr {
+            border-bottom: 1px solid #1e293b;
+            transition: background 0.15s;
+        }
+
+        tbody tr:hover {
+            background: #334155;
+        }
+
+        tbody td {
+            padding: 12px 16px;
+            font-size: 13px;
+            color: #cbd5e1;
+            max-width: 200px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        .rating-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            background: #fbbf24;
+            color: #0f172a;
+            padding: 2px 8px;
+            border-radius: 12px;
+            font-size: 12px;
+            font-weight: 600;
+        }
+
+        .website-badge {
+            display: inline-block;
+            padding: 2px 8px;
+            border-radius: 12px;
+            font-size: 11px;
+            font-weight: 600;
+        }
+
+        .has-website { background: #22c55e20; color: #22c55e; }
+        .no-website { background: #ef444420; color: #ef4444; }
+
+        .actions-cell {
+            display: flex;
+            gap: 6px;
+        }
+
+        a.link {
+            color: #38bdf8;
+            text-decoration: none;
+        }
+
+        a.link:hover { text-decoration: underline; }
+
+        /* Loading overlay */
+        .loading-overlay {
+            display: none;
+            position: fixed;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(15, 23, 42, 0.85);
+            z-index: 1000;
+            justify-content: center;
+            align-items: center;
+            flex-direction: column;
+            gap: 16px;
+        }
+
+        .loading-overlay.active { display: flex; }
+
+        .spinner {
+            width: 48px;
+            height: 48px;
+            border: 4px solid #334155;
+            border-top: 4px solid #38bdf8;
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        .loading-text {
+            color: #94a3b8;
+            font-size: 14px;
+        }
+
+        /* Modal */
+        .modal-backdrop {
+            display: none;
+            position: fixed;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(15, 23, 42, 0.85);
+            z-index: 999;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .modal-backdrop.active { display: flex; }
+
+        .modal {
+            background: #1e293b;
+            border: 1px solid #334155;
+            border-radius: 12px;
+            padding: 24px;
+            width: 480px;
+            max-width: 90vw;
+        }
+
+        .modal h3 {
+            margin-bottom: 16px;
+            color: #38bdf8;
+        }
+
+        .modal .input-group {
+            margin-bottom: 12px;
+        }
+
+        .modal textarea {
+            width: 100%;
+            padding: 10px 14px;
+            background: #0f172a;
+            border: 1px solid #334155;
+            border-radius: 8px;
+            color: #e2e8f0;
+            font-size: 14px;
+            outline: none;
+            resize: vertical;
+            min-height: 100px;
+            font-family: inherit;
+        }
+
+        .modal textarea:focus { border-color: #38bdf8; }
+
+        .modal-actions {
+            display: flex;
+            gap: 12px;
+            justify-content: flex-end;
+            margin-top: 16px;
+        }
+
+        .btn-secondary {
+            background: #334155;
+            color: #e2e8f0;
+        }
+
+        .btn-secondary:hover { background: #475569; }
+
+        .empty-state {
+            text-align: center;
+            padding: 60px 20px;
+            color: #64748b;
+        }
+
+        .empty-state h3 { margin-bottom: 8px; color: #94a3b8; }
+
+        /* Toast */
+        .toast {
+            position: fixed;
+            bottom: 24px;
+            right: 24px;
+            background: #22c55e;
+            color: white;
+            padding: 12px 24px;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 600;
+            transform: translateY(100px);
+            opacity: 0;
+            transition: all 0.3s;
+            z-index: 2000;
+        }
+
+        .toast.show {
+            transform: translateY(0);
+            opacity: 1;
+        }
+
+        .toast.error { background: #ef4444; }
+
+        /* Contacted badge */
+        .contacted-badge {
+            display: inline-block;
+            padding: 2px 6px;
+            border-radius: 8px;
+            font-size: 10px;
+            font-weight: 600;
+            margin-left: 4px;
+        }
+
+        .contacted-wa { background: #25d36620; color: #25d366; }
+        .contacted-em { background: #6366f120; color: #818cf8; }
+
+        /* Progress modal */
+        .progress-bar-container {
+            width: 100%;
+            background: #0f172a;
+            border-radius: 8px;
+            overflow: hidden;
+            height: 24px;
+            margin: 12px 0;
+        }
+
+        .progress-bar {
+            height: 100%;
+            background: linear-gradient(90deg, #38bdf8, #6366f1);
+            transition: width 0.5s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 11px;
+            font-weight: 600;
+            color: white;
+        }
+
+        .bulk-log {
+            max-height: 250px;
+            overflow-y: auto;
+            background: #0f172a;
+            border-radius: 8px;
+            padding: 12px;
+            font-size: 12px;
+            margin-top: 12px;
+            font-family: monospace;
+        }
+
+        .bulk-log .log-entry {
+            padding: 4px 0;
+            border-bottom: 1px solid #1e293b;
+        }
+
+        .log-sent { color: #22c55e; }
+        .log-failed { color: #ef4444; }
+        .log-pending { color: #94a3b8; }
+        .log-current { color: #fbbf24; }
+
+        .modal-wide {
+            width: 600px;
+        }
+
+        .lead-row-contacted {
+            border-left: 3px solid #22c55e;
+        }
+
+        /* Checkbox styling */
+        .lead-checkbox {
+            width: 16px;
+            height: 16px;
+            accent-color: #38bdf8;
+            cursor: pointer;
+        }
+
+        .email-input-mini {
+            padding: 4px 8px;
+            background: #0f172a;
+            border: 1px solid #334155;
+            border-radius: 6px;
+            color: #e2e8f0;
+            font-size: 12px;
+            width: 160px;
+            outline: none;
+        }
+
+        .email-input-mini:focus { border-color: #38bdf8; }
+    </style>
+</head>
+<body>
+
+<div class="header">
+    <h1>Lead Scraper</h1>
+    <div class="stats">
+        <div class="stat-box">
+            <div class="num" id="totalLeads">0</div>
+            <div class="label">Total Leads</div>
+        </div>
+        <div class="stat-box">
+            <div class="num" id="withWebsite">0</div>
+            <div class="label">With Website</div>
+        </div>
+        <div class="stat-box">
+            <div class="num" id="withoutWebsite">0</div>
+            <div class="label">No Website</div>
+        </div>
+        <div class="stat-box">
+            <div class="num" id="contactedCount">0</div>
+            <div class="label">Contacted</div>
+        </div>
+    </div>
+</div>
+
+<div class="container">
+    <!-- Search Section -->
+    <div class="search-section">
+        <div class="search-row">
+            <div class="input-group" style="flex:2">
+                <label>Search Keyword</label>
+                <input type="text" id="keyword" placeholder="e.g. restaurants, plumbers, dentists" />
+            </div>
+            <div class="input-group" style="flex:1.5">
+                <label>Location</label>
+                <input type="text" id="location" placeholder="e.g. New York, NY" />
+            </div>
+            <div class="input-group" style="flex:0.7">
+                <label>Source</label>
+                <select id="source">
+                    <option value="google_maps">Google Maps</option>
+                    <option value="manta">Manta.com</option>
+                    <option value="both">Both Sources</option>
+                </select>
+            </div>
+            <div class="input-group" style="flex:0.4">
+                <label>Max Results</label>
+                <input type="number" id="maxResults" value="20" min="5" max="100" />
+            </div>
+            <div class="input-group" style="flex:0.5">
+                <label>Scroll Depth</label>
+                <select id="scrollCount">
+                    <option value="2">Light (2)</option>
+                    <option value="3" selected>Normal (3)</option>
+                    <option value="5">Deep (5)</option>
+                    <option value="8">Very Deep (8)</option>
+                </select>
+            </div>
+            <button class="btn btn-primary" id="searchBtn" onclick="startSearch()">
+                Search & Scrape
+            </button>
+        </div>
+    </div>
+
+    <!-- Toolbar -->
+    <div class="toolbar">
+        <div class="filter-group">
+            <button class="filter-btn active" data-filter="all" onclick="setFilter('all', this)">All</button>
+            <button class="filter-btn" data-filter="with_website" onclick="setFilter('with_website', this)">With Website</button>
+            <button class="filter-btn" data-filter="without_website" onclick="setFilter('without_website', this)">Without Website</button>
+        </div>
+        <div style="display:flex; gap:12px; align-items:center; flex-wrap:wrap;">
+            <div class="search-filter">
+                <input type="text" id="tableSearch" placeholder="Filter leads..." oninput="filterTable()" />
+            </div>
+            <button class="btn btn-ai btn-sm" onclick="openBulkEmailModal()">Bulk Email</button>
+            <button class="btn btn-whatsapp btn-sm" onclick="openBulkWhatsAppModal()">Bulk WhatsApp</button>
+            <button class="btn btn-danger btn-sm" onclick="clearAllLeads()">Clear All</button>
+            <button class="btn btn-secondary btn-sm" onclick="exportCSV()">Export CSV</button>
+        </div>
+    </div>
+
+    <!-- Table -->
+    <div class="table-wrapper">
+        <div class="table-scroll">
+            <table>
+                <thead>
+                    <tr>
+                        <th><input type="checkbox" class="lead-checkbox" id="selectAll" onchange="toggleSelectAll()" /></th>
+                        <th>#</th>
+                        <th>Business Name</th>
+                        <th>Source</th>
+                        <th>Rating</th>
+                        <th>Category</th>
+                        <th>Address</th>
+                        <th>Phone</th>
+                        <th>Email</th>
+                        <th>Website</th>
+                        <th>Status</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody id="leadsTable">
+                    <tr>
+                        <td colspan="12">
+                            <div class="empty-state">
+                                <h3>No leads yet</h3>
+                                <p>Enter a keyword above and click "Search & Scrape" to find businesses.</p>
+                            </div>
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<!-- Loading Overlay -->
+<div class="loading-overlay" id="loading">
+    <div class="spinner"></div>
+    <div class="loading-text" id="loadingText">Scraping Google Maps... This may take a minute.</div>
+</div>
+
+<!-- WhatsApp Modal -->
+<div class="modal-backdrop" id="whatsappModal">
+    <div class="modal">
+        <h3>Send WhatsApp Message</h3>
+        <div class="input-group">
+            <label>Phone Number</label>
+            <input type="text" id="waPhone" readonly />
+        </div>
+        <div class="input-group">
+            <label>Business Name</label>
+            <input type="text" id="waName" readonly />
+        </div>
+        <div class="input-group">
+            <label>Message</label>
+            <textarea id="waMessage">Hi! I came across your business and would love to connect. Are you open to a quick chat?</textarea>
+        </div>
+        <div class="modal-actions">
+            <button class="btn btn-ai btn-sm" id="waAiBtn" onclick="generateAiMessage('whatsapp')">AI Generate</button>
+            <div style="flex:1"></div>
+            <button class="btn btn-secondary" onclick="closeModal('whatsappModal')">Cancel</button>
+            <button class="btn btn-whatsapp" onclick="sendWhatsApp()">Open WhatsApp</button>
+        </div>
+    </div>
+</div>
+
+<!-- Email Modal -->
+<div class="modal-backdrop" id="emailModal">
+    <div class="modal">
+        <h3>Send Email</h3>
+        <div class="input-group">
+            <label>To (Email Address)</label>
+            <input type="email" id="emailTo" placeholder="Enter email address" />
+        </div>
+        <div class="input-group">
+            <label>Business Name</label>
+            <input type="text" id="emailName" readonly />
+        </div>
+        <div class="input-group">
+            <label>Subject</label>
+            <input type="text" id="emailSubject" value="Business Inquiry" />
+        </div>
+        <div class="input-group">
+            <label>Body</label>
+            <textarea id="emailBody">Hello,
+
+I came across your business and was impressed by your work. I'd love to discuss a potential collaboration.
+
+Looking forward to hearing from you.
+
+Best regards</textarea>
+        </div>
+        <div class="modal-actions">
+            <button class="btn btn-ai btn-sm" id="emailAiBtn" onclick="generateAiMessage('email')">AI Generate</button>
+            <div style="flex:1"></div>
+            <button class="btn btn-secondary" onclick="closeModal('emailModal')">Cancel</button>
+            <button class="btn btn-email" onclick="sendEmail()">Open Email Client</button>
+        </div>
+    </div>
+</div>
+
+<!-- Bulk Email Modal -->
+<div class="modal-backdrop" id="bulkEmailModal">
+    <div class="modal modal-wide">
+        <h3>Bulk Email - AI Generated</h3>
+        <p style="color:#94a3b8;font-size:13px;margin-bottom:12px;">
+            Sends personalized AI-generated emails via Gmail to all selected leads with email addresses.
+        </p>
+        <div id="bulkEmailInfo" style="margin-bottom:12px;font-size:13px;">
+            <span id="bulkEmailCount">0</span> leads selected with email addresses
+        </div>
+        <div class="progress-bar-container" id="emailProgressContainer" style="display:none;">
+            <div class="progress-bar" id="emailProgressBar" style="width:0%;">0%</div>
+        </div>
+        <div class="bulk-log" id="emailLog" style="display:none;"></div>
+        <div class="modal-actions">
+            <button class="btn btn-secondary" onclick="closeModal('bulkEmailModal')">Close</button>
+            <button class="btn btn-ai" id="bulkEmailBtn" onclick="startBulkEmail()">Send All Emails</button>
+        </div>
+    </div>
+</div>
+
+<!-- Bulk WhatsApp Modal -->
+<div class="modal-backdrop" id="bulkWhatsAppModal">
+    <div class="modal modal-wide">
+        <h3>Bulk WhatsApp - AI Generated</h3>
+        <p style="color:#94a3b8;font-size:13px;margin-bottom:12px;">
+            Generates personalized AI messages and opens WhatsApp Desktop one by one with human-like delays (30-90s) to avoid bans.
+        </p>
+        <div id="bulkWaInfo" style="margin-bottom:12px;font-size:13px;">
+            <span id="bulkWaCount">0</span> leads selected with phone numbers
+        </div>
+        <div class="progress-bar-container" id="waProgressContainer" style="display:none;">
+            <div class="progress-bar" id="waProgressBar" style="width:0%;">0%</div>
+        </div>
+        <div class="bulk-log" id="waLog" style="display:none;"></div>
+        <div class="modal-actions">
+            <button class="btn btn-secondary" id="bulkWaCancelBtn" onclick="cancelBulkWhatsApp()">Close</button>
+            <button class="btn btn-whatsapp" id="bulkWaBtn" onclick="startBulkWhatsApp()">Start Sending</button>
+        </div>
+    </div>
+</div>
+
+<!-- Toast -->
+<div class="toast" id="toast"></div>
+
+<script>
+    let currentFilter = "all";
+    let allLeads = [];
+    let currentModalLead = null;
+    let selectedLeadIds = new Set();
+    let bulkWaCancelled = false;
+
+    window.addEventListener("DOMContentLoaded", () => {
+        loadLeads();
+        document.getElementById("keyword").addEventListener("keydown", (e) => {
+            if (e.key === "Enter") startSearch();
+        });
+    });
+
+    async function startSearch() {
+        const keyword = document.getElementById("keyword").value.trim();
+        if (!keyword) { showToast("Please enter a keyword", true); return; }
+
+        const location = document.getElementById("location").value.trim();
+        const source = document.getElementById("source").value;
+        const maxResults = parseInt(document.getElementById("maxResults").value) || 20;
+        const scrollCount = parseInt(document.getElementById("scrollCount").value) || 3;
+
+        const btn = document.getElementById("searchBtn");
+        btn.disabled = true;
+        showLoading(true);
+
+        try {
+            const res = await fetch("/api/search", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ keyword, location, source, max_results: maxResults, scroll_count: scrollCount })
+            });
+            const data = await res.json();
+            if (data.error) { showToast(data.error, true); }
+            else {
+                showToast(`Found ${data.total_scraped} businesses. ${data.new_added} new, ${data.duplicates_skipped} duplicates skipped.`);
+                loadLeads();
+            }
+        } catch (err) { showToast("Search failed: " + err.message, true); }
+        finally { btn.disabled = false; showLoading(false); }
+    }
+
+    async function loadLeads() {
+        const q = document.getElementById("tableSearch").value.trim();
+        const params = new URLSearchParams({ filter: currentFilter });
+        if (q) params.set("q", q);
+        try {
+            const res = await fetch(`/api/leads?${params}`);
+            const data = await res.json();
+            allLeads = data.leads;
+            renderTable(allLeads);
+            updateStats();
+        } catch (err) { console.error(err); }
+    }
+
+    async function updateStats() {
+        try {
+            const [all, withW, withoutW] = await Promise.all([
+                fetch("/api/leads?filter=all").then(r => r.json()),
+                fetch("/api/leads?filter=with_website").then(r => r.json()),
+                fetch("/api/leads?filter=without_website").then(r => r.json()),
+            ]);
+            document.getElementById("totalLeads").textContent = all.total;
+            document.getElementById("withWebsite").textContent = withW.total;
+            document.getElementById("withoutWebsite").textContent = withoutW.total;
+            const contacted = all.leads.filter(l => l.contacted && (l.contacted.email || l.contacted.whatsapp)).length;
+            document.getElementById("contactedCount").textContent = contacted;
+        } catch (err) {}
+    }
+
+    function renderTable(leads) {
+        const tbody = document.getElementById("leadsTable");
+        if (leads.length === 0) {
+            tbody.innerHTML = `<tr><td colspan="12"><div class="empty-state"><h3>No leads found</h3><p>Try a different keyword or adjust filters.</p></div></td></tr>`;
+            return;
+        }
+
+        tbody.innerHTML = leads.map((lead, i) => {
+            const srcLabel = lead.source === "manta" ? "Manta" : "Google Maps";
+            const srcColor = lead.source === "manta" ? "#f97316" : "#22c55e";
+            const leadJson = JSON.stringify(lead).replace(/'/g, "&#39;").replace(/"/g, "&quot;");
+            const isContacted = lead.contacted && (lead.contacted.email || lead.contacted.whatsapp);
+            const checked = selectedLeadIds.has(lead.id) ? "checked" : "";
+
+            let statusBadges = "";
+            if (lead.contacted) {
+                if (lead.contacted.whatsapp) statusBadges += `<span class="contacted-badge contacted-wa" title="WhatsApp: ${esc(lead.contacted.whatsapp_date || '')}">WA</span>`;
+                if (lead.contacted.email) statusBadges += `<span class="contacted-badge contacted-em" title="Email: ${esc(lead.contacted.email_date || '')}">EM</span>`;
+            }
+            if (!statusBadges) statusBadges = `<span style="color:#64748b;font-size:11px;">New</span>`;
+
+            const defaultEmail = lead.email || (lead.website ? "info@" + lead.website : "");
+
+            return `
+            <tr class="${isContacted ? 'lead-row-contacted' : ''}">
+                <td><input type="checkbox" class="lead-checkbox" data-id="${lead.id}" ${checked} onchange="toggleSelect('${lead.id}', this.checked)" /></td>
+                <td>${i + 1}</td>
+                <td title="${esc(lead.name)}">
+                    <strong>${esc(lead.name)}</strong>
+                    ${lead.maps_url ? `<br><a class="link" href="${esc(lead.maps_url)}" target="_blank" style="font-size:11px">View Source</a>` : ""}
+                </td>
+                <td><span style="background:${srcColor}20;color:${srcColor};padding:2px 8px;border-radius:12px;font-size:11px;font-weight:600">${srcLabel}</span></td>
+                <td>${lead.rating ? `<span class="rating-badge">${esc(lead.rating)} ★</span>` : "-"}</td>
+                <td title="${esc(lead.category)}">${esc(lead.category) || "-"}</td>
+                <td title="${esc(lead.address)}">${esc(lead.address) || "-"}</td>
+                <td>${lead.phone ? `<a class="link" href="tel:${esc(lead.phone)}">${esc(lead.phone)}</a>` : "-"}</td>
+                <td>
+                    <input type="text" class="email-input-mini" value="${esc(defaultEmail)}"
+                           placeholder="Add email..."
+                           onchange="saveLeadEmail('${lead.id}', this.value)" />
+                </td>
+                <td>
+                    ${lead.website
+                        ? `<span class="website-badge has-website">Yes</span><br><a class="link" href="${esc(lead.website_url || 'https://' + lead.website)}" target="_blank" style="font-size:11px">${esc(lead.website)}</a>`
+                        : `<span class="website-badge no-website">No</span>`}
+                </td>
+                <td>${statusBadges}</td>
+                <td>
+                    <div class="actions-cell">
+                        ${lead.phone ? `<button class="btn btn-whatsapp btn-sm" onclick='openWhatsApp(${leadJson})'>WA</button>` : ""}
+                        <button class="btn btn-email btn-sm" onclick='openEmail(${leadJson})'>Email</button>
+                        <button class="btn btn-danger btn-sm" onclick="deleteLead('${lead.id}')">X</button>
+                    </div>
+                </td>
+            </tr>`;
+        }).join("");
+    }
+
+    function esc(str) {
+        if (!str) return "";
+        return str.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#39;");
+    }
+
+    // Selection
+    function toggleSelect(id, checked) {
+        if (checked) selectedLeadIds.add(id);
+        else selectedLeadIds.delete(id);
+    }
+
+    function toggleSelectAll() {
+        const checked = document.getElementById("selectAll").checked;
+        selectedLeadIds.clear();
+        if (checked) allLeads.forEach(l => selectedLeadIds.add(l.id));
+        document.querySelectorAll(".lead-checkbox[data-id]").forEach(cb => cb.checked = checked);
+    }
+
+    function getSelectedLeads() {
+        if (selectedLeadIds.size > 0) return allLeads.filter(l => selectedLeadIds.has(l.id));
+        return allLeads; // If none selected, use all
+    }
+
+    // Save email for a lead
+    async function saveLeadEmail(leadId, email) {
+        try {
+            await fetch(`/api/leads/${leadId}/email`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ email })
+            });
+            // Update local data
+            const lead = allLeads.find(l => l.id === leadId);
+            if (lead) lead.email = email;
+        } catch (err) {}
+    }
+
+    function setFilter(filter, el) {
+        currentFilter = filter;
+        document.querySelectorAll(".filter-btn").forEach(b => b.classList.remove("active"));
+        el.classList.add("active");
+        loadLeads();
+    }
+
+    function filterTable() { loadLeads(); }
+
+    // Single lead modals
+    function openWhatsApp(lead) {
+        currentModalLead = lead;
+        document.getElementById("waPhone").value = lead.phone || "";
+        document.getElementById("waName").value = lead.name || "";
+        document.getElementById("waMessage").value = "Hi! I came across your business and would love to connect. Are you open to a quick chat?";
+        document.getElementById("whatsappModal").classList.add("active");
+    }
+
+    function openEmail(lead) {
+        currentModalLead = lead;
+        document.getElementById("emailTo").value = lead.email || (lead.website ? "info@" + lead.website : "");
+        document.getElementById("emailName").value = lead.name || "";
+        document.getElementById("emailSubject").value = "Business Inquiry";
+        document.getElementById("emailBody").value = "Hello,\n\nI came across your business and was impressed by your work. I'd love to discuss a potential collaboration.\n\nLooking forward to hearing from you.\n\nBest regards";
+        document.getElementById("emailModal").classList.add("active");
+    }
+
+    async function generateAiMessage(type) {
+        if (!currentModalLead) { showToast("No lead selected", true); return; }
+        const btn = document.getElementById(type === "whatsapp" ? "waAiBtn" : "emailAiBtn");
+        const originalText = btn.textContent;
+        btn.disabled = true;
+        btn.textContent = "Generating...";
+        try {
+            const res = await fetch("/api/generate-message", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ lead: currentModalLead, type })
+            });
+            const data = await res.json();
+            if (data.error) { showToast("AI Error: " + data.error, true); return; }
+            if (type === "whatsapp") {
+                document.getElementById("waMessage").value = data.message;
+            } else {
+                if (data.subject) document.getElementById("emailSubject").value = data.subject;
+                document.getElementById("emailBody").value = data.body;
+            }
+            showToast("AI message generated!");
+        } catch (err) { showToast("Failed to generate AI message", true); }
+        finally { btn.disabled = false; btn.textContent = originalText; }
+    }
+
+    function closeModal(id) { document.getElementById(id).classList.remove("active"); }
+
+    async function sendWhatsApp() {
+        const phone = document.getElementById("waPhone").value;
+        const message = document.getElementById("waMessage").value;
+        if (!phone) { showToast("No phone number available", true); return; }
+        try {
+            const res = await fetch("/api/whatsapp-link", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ phone, message })
+            });
+            const data = await res.json();
+            window.open(data.url, "_blank");
+            // Mark contacted
+            if (currentModalLead) {
+                await fetch(`/api/leads/${currentModalLead.id}/contacted`, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ channel: "whatsapp" })
+                });
+            }
+            closeModal("whatsappModal");
+            loadLeads();
+        } catch (err) { showToast("Failed to generate WhatsApp link", true); }
+    }
+
+    async function sendEmail() {
+        const email = document.getElementById("emailTo").value;
+        const subject = document.getElementById("emailSubject").value;
+        const body = document.getElementById("emailBody").value;
+        if (!email) { showToast("Please enter an email address", true); return; }
+
+        const mailto = `mailto:${email}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+        window.open(mailto);
+        if (currentModalLead) {
+            await fetch(`/api/leads/${currentModalLead.id}/contacted`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ channel: "email" })
+            });
+        }
+        closeModal("emailModal");
+        loadLeads();
+    }
+
+    // ========== BULK EMAIL ==========
+    function openBulkEmailModal() {
+        const leads = getSelectedLeads();
+        const withEmail = leads.filter(l => l.email || l.website);
+        document.getElementById("bulkEmailCount").textContent = withEmail.length;
+        document.getElementById("emailProgressContainer").style.display = "none";
+        document.getElementById("emailLog").style.display = "none";
+        document.getElementById("emailLog").innerHTML = "";
+        document.getElementById("bulkEmailBtn").disabled = false;
+        document.getElementById("bulkEmailBtn").textContent = "Send All Emails";
+        document.getElementById("bulkEmailModal").classList.add("active");
+    }
+
+    async function startBulkEmail() {
+        const leads = getSelectedLeads();
+        const withEmail = leads.filter(l => {
+            const email = l.email || (l.website ? "info@" + l.website : "");
+            return email;
+        });
+
+        if (withEmail.length === 0) { showToast("No leads with email addresses", true); return; }
+        if (!confirm(`Send AI-generated emails to ${withEmail.length} leads via Gmail?`)) return;
+
+        // Save any missing emails (info@website) to leads first
+        for (const lead of withEmail) {
+            if (!lead.email && lead.website) {
+                lead.email = "info@" + lead.website;
+                await saveLeadEmail(lead.id, lead.email);
+            }
+        }
+
+        const btn = document.getElementById("bulkEmailBtn");
+        btn.disabled = true;
+        btn.textContent = "Sending...";
+        document.getElementById("emailProgressContainer").style.display = "block";
+        const log = document.getElementById("emailLog");
+        log.style.display = "block";
+        log.innerHTML = "";
+
+        const leadIds = withEmail.map(l => l.id);
+
+        try {
+            const res = await fetch("/api/bulk-email", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ lead_ids: leadIds })
+            });
+            const data = await res.json();
+
+            if (data.error) { showToast(data.error, true); btn.disabled = false; btn.textContent = "Send All Emails"; return; }
+
+            // Show results
+            const bar = document.getElementById("emailProgressBar");
+            bar.style.width = "100%";
+            bar.textContent = "100%";
+
+            data.results.forEach(r => {
+                const cls = r.status === "sent" ? "log-sent" : "log-failed";
+                const icon = r.status === "sent" ? "[SENT]" : "[FAIL]";
+                const detail = r.status === "sent" ? r.subject : r.error;
+                log.innerHTML += `<div class="log-entry ${cls}">${icon} ${esc(r.name)} -> ${esc(r.email)} | ${esc(detail)}</div>`;
+            });
+
+            showToast(`Emails sent: ${data.sent} success, ${data.failed} failed`);
+            btn.textContent = `Done (${data.sent} sent)`;
+            loadLeads();
+        } catch (err) {
+            showToast("Bulk email failed: " + err.message, true);
+            btn.disabled = false;
+            btn.textContent = "Send All Emails";
+        }
+    }
+
+    // ========== BULK WHATSAPP ==========
+    function openBulkWhatsAppModal() {
+        const leads = getSelectedLeads();
+        const withPhone = leads.filter(l => l.phone);
+        document.getElementById("bulkWaCount").textContent = withPhone.length;
+        document.getElementById("waProgressContainer").style.display = "none";
+        document.getElementById("waLog").style.display = "none";
+        document.getElementById("waLog").innerHTML = "";
+        document.getElementById("bulkWaBtn").disabled = false;
+        document.getElementById("bulkWaBtn").textContent = "Start Sending";
+        bulkWaCancelled = false;
+        document.getElementById("bulkWhatsAppModal").classList.add("active");
+    }
+
+    function cancelBulkWhatsApp() {
+        bulkWaCancelled = true;
+        closeModal("bulkWhatsAppModal");
+    }
+
+    function randomDelay(min, max) {
+        return Math.floor(Math.random() * (max - min + 1)) + min;
+    }
+
+    function sleep(ms) {
+        return new Promise(resolve => setTimeout(resolve, ms));
+    }
+
+    async function startBulkWhatsApp() {
+        const leads = getSelectedLeads();
+        const withPhone = leads.filter(l => l.phone);
+
+        if (withPhone.length === 0) { showToast("No leads with phone numbers", true); return; }
+        if (!confirm(`Generate AI messages and open WhatsApp for ${withPhone.length} leads?\n\nMessages will open one by one with 30-90 second delays to mimic human behavior.`)) return;
+
+        const btn = document.getElementById("bulkWaBtn");
+        btn.disabled = true;
+        btn.textContent = "Generating messages...";
+        document.getElementById("waProgressContainer").style.display = "block";
+        const log = document.getElementById("waLog");
+        log.style.display = "block";
+        log.innerHTML = "";
+        bulkWaCancelled = false;
+
+        // First, generate all messages via backend
+        const leadIds = withPhone.map(l => l.id);
+        let results;
+
+        try {
+            const res = await fetch("/api/bulk-whatsapp", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ lead_ids: leadIds })
+            });
+            const data = await res.json();
+            if (data.error) { showToast(data.error, true); btn.disabled = false; btn.textContent = "Start Sending"; return; }
+            results = data.results.filter(r => r.status === "ready");
+        } catch (err) {
+            showToast("Failed to generate messages: " + err.message, true);
+            btn.disabled = false;
+            btn.textContent = "Start Sending";
+            return;
+        }
+
+        btn.textContent = "Sending...";
+        const bar = document.getElementById("waProgressBar");
+        const total = results.length;
+
+        for (let i = 0; i < total; i++) {
+            if (bulkWaCancelled) {
+                log.innerHTML += `<div class="log-entry log-failed">[CANCELLED] Stopped at ${i}/${total}</div>`;
+                break;
+            }
+
+            const r = results[i];
+            const pct = Math.round(((i + 1) / total) * 100);
+            bar.style.width = pct + "%";
+            bar.textContent = `${i + 1}/${total}`;
+
+            log.innerHTML += `<div class="log-entry log-current">[OPENING] ${esc(r.name)} - ${esc(r.phone)}</div>`;
+            log.scrollTop = log.scrollHeight;
+
+            // Open WhatsApp desktop app
+            window.open(r.url, "_blank");
+
+            // Update last entry to sent
+            const entries = log.querySelectorAll(".log-entry");
+            const lastEntry = entries[entries.length - 1];
+            lastEntry.className = "log-entry log-sent";
+            lastEntry.textContent = `[SENT] ${r.name} - ${r.phone}`;
+
+            // Human-like random delay between 30-90 seconds (skip delay for last message)
+            if (i < total - 1) {
+                const delay = randomDelay(30, 90);
+                lastEntry.textContent += ` | Next in ${delay}s...`;
+
+                for (let s = delay; s > 0; s--) {
+                    if (bulkWaCancelled) break;
+                    lastEntry.textContent = `[SENT] ${r.name} - ${r.phone} | Next in ${s}s...`;
+                    await sleep(1000);
+                }
+                lastEntry.textContent = `[SENT] ${r.name} - ${r.phone}`;
+            }
+        }
+
+        btn.textContent = `Done (${total} messages)`;
+        showToast(`WhatsApp: ${total} messages opened`);
+        loadLeads();
+    }
+
+    // ========== CRUD ==========
+    async function deleteLead(id) {
+        try {
+            await fetch(`/api/leads/${id}`, { method: "DELETE" });
+            selectedLeadIds.delete(id);
+            showToast("Lead deleted");
+            loadLeads();
+        } catch (err) {}
+    }
+
+    async function clearAllLeads() {
+        if (!confirm("Are you sure you want to delete ALL leads?")) return;
+        try {
+            await fetch("/api/leads/clear", { method: "DELETE" });
+            selectedLeadIds.clear();
+            showToast("All leads cleared");
+            loadLeads();
+        } catch (err) {}
+    }
+
+    function exportCSV() {
+        if (allLeads.length === 0) { showToast("No leads to export", true); return; }
+        const headers = ["Name", "Rating", "Reviews", "Category", "Address", "Phone", "Email", "Website", "Hours", "Contacted", "Maps URL"];
+        const rows = allLeads.map(l => [
+            l.name, l.rating, l.reviews, l.category, l.address,
+            l.phone, l.email || "", l.website || "", l.hours,
+            l.contacted ? [l.contacted.email ? "Email" : "", l.contacted.whatsapp ? "WhatsApp" : ""].filter(Boolean).join("+") : "No",
+            l.maps_url || ""
+        ]);
+        let csv = headers.join(",") + "\n";
+        rows.forEach(row => { csv += row.map(cell => `"${(cell || "").replace(/"/g, '""')}"`).join(",") + "\n"; });
+        const blob = new Blob([csv], { type: "text/csv" });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = "leads_export.csv";
+        a.click();
+        URL.revokeObjectURL(url);
+        showToast("CSV exported!");
+    }
+
+    function showLoading(show) { document.getElementById("loading").classList.toggle("active", show); }
+
+    function showToast(msg, isError = false) {
+        const toast = document.getElementById("toast");
+        toast.textContent = msg;
+        toast.className = "toast show" + (isError ? " error" : "");
+        setTimeout(() => toast.className = "toast", 3000);
+    }
+</script>
+
+</body>
+</html>

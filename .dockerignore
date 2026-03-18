@@ -1,0 +1,7 @@
+node_modules
+__pycache__
+*.pyc
+.git
+.claude
+launch.json
+package-lock.json
