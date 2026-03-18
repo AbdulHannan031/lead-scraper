@@ -1,11 +1,7 @@
 import time
 import re
 import json
-import threading
 from playwright.sync_api import sync_playwright
-
-
-PARALLEL_TABS = 4  # Number of tabs scraping simultaneously
 
 
 def scroll_and_collect_urls(page, max_results=20, scroll_count=3, pause=1, on_progress=None):
@@ -113,46 +109,10 @@ def extract_detail_data(page):
     return data
 
 
-def scrape_batch(context, items, results_list, lock, counter, total, emit):
-    """Scrape a batch of URLs in a single tab."""
-    page = context.new_page()
-    try:
-        for item in items:
-            try:
-                page.goto(item["url"], timeout=15000)
-                page.wait_for_selector("h1.DUwDvf", timeout=5000)
-
-                data = extract_detail_data(page)
-
-                if not data.get("name"):
-                    data["name"] = item["label"].title()
-
-                if data.get("name"):
-                    with lock:
-                        results_list.append(data)
-                        counter[0] += 1
-                        emit("scraping", {
-                            "current": counter[0],
-                            "total": total,
-                            "name": data["name"]
-                        })
-            except Exception:
-                with lock:
-                    counter[0] += 1
-                    emit("scraping", {
-                        "current": counter[0],
-                        "total": total,
-                        "name": item["label"].title()
-                    })
-                continue
-    finally:
-        page.close()
-
-
 def scrape_google_maps(keyword, max_results=20, scroll_count=3, on_progress=None):
     """
-    Search Google Maps and scrape business listings using parallel tabs.
-    on_progress(event, data) callback for real-time updates.
+    Search Google Maps and scrape business listings.
+    Uses multiple pages (tabs) in round-robin for speed, but all in one thread.
     """
     results = []
 
@@ -193,36 +153,46 @@ def scrape_google_maps(keyword, max_results=20, scroll_count=3, on_progress=None
 
             emit("scrolling", {"found": total})
 
-            # Close search page, we don't need it anymore
-            page.close()
-
             if total == 0:
                 emit("done", {"total": 0})
                 browser.close()
                 return results
 
-            # Split URLs into batches for parallel tabs
-            num_tabs = min(PARALLEL_TABS, total)
-            batches = [[] for _ in range(num_tabs)]
+            # Close search page
+            page.close()
+
+            # Open multiple tabs for round-robin fast scraping (single thread, no crash)
+            NUM_TABS = 3
+            tabs = [context.new_page() for _ in range(NUM_TABS)]
+
             for i, item in enumerate(listing_urls):
-                batches[i % num_tabs].append(item)
+                try:
+                    tab = tabs[i % NUM_TABS]
 
-            lock = threading.Lock()
-            counter = [0]  # mutable counter shared across threads
+                    emit("scraping", {"current": i + 1, "total": total, "name": item["label"].title()})
 
-            emit("status", {"message": f"Scraping {total} listings with {num_tabs} parallel tabs..."})
+                    tab.goto(item["url"], timeout=15000)
+                    try:
+                        tab.wait_for_selector("h1.DUwDvf", timeout=4000)
+                    except Exception:
+                        pass
 
-            threads = []
-            for batch in batches:
-                t = threading.Thread(
-                    target=scrape_batch,
-                    args=(context, batch, results, lock, counter, total, emit)
-                )
-                threads.append(t)
-                t.start()
+                    data = extract_detail_data(tab)
 
-            for t in threads:
-                t.join()
+                    if not data.get("name"):
+                        data["name"] = item["label"].title()
+
+                    if data.get("name"):
+                        results.append(data)
+
+                except Exception:
+                    continue
+
+            for tab in tabs:
+                try:
+                    tab.close()
+                except Exception:
+                    pass
 
             emit("done", {"total": len(results)})
 
